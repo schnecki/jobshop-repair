@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: release
+            flags: -DCMAKE_BUILD_TYPE=Release
+          - name: sanitizers
+            flags: -DCMAKE_BUILD_TYPE=Debug -DJSR_SANITIZE=ON
+    name: ${{ matrix.name }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y ninja-build libgtest-dev g++-14
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DCMAKE_CXX_COMPILER=g++-14 -DJSR_WERROR=ON ${{ matrix.flags }}
+      - name: Build
+        run: cmake --build build
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+      - name: Smoke-run CLI
+        run: ./build/jsr instances/ft06.txt --rule MWKR --breakdown 2,10,25 --improve --header
+
+  format:
+    runs-on: ubuntu-24.04
+    continue-on-error: true  # clang-format versions differ between distros
+    steps:
+      - uses: actions/checkout@v4
+      - name: clang-format check
+        run: |
+          find src include tests -name '*.cpp' -o -name '*.hpp' | xargs clang-format --dry-run --Werror
