@@ -20,10 +20,13 @@ def read_header(path: Path) -> tuple[int, int]:
     raise ValueError(f"no header in {path}")
 
 
-def run(binary: Path, instance: Path, rule: str, breakdown: str | None) -> list[dict]:
+def run(binary: Path, instance: Path, rule: str, breakdown: str | None,
+        improve: bool) -> list[dict]:
     cmd = [str(binary), str(instance), "--rule", rule, "--header"]
     if breakdown:
         cmd += ["--breakdown", breakdown]
+    if improve:
+        cmd.append("--improve")
     out = subprocess.run(cmd, check=True, capture_output=True, text=True).stdout
     rows = list(csv.DictReader(io.StringIO(out)))
     for r in rows:
@@ -54,8 +57,9 @@ def main() -> None:
             start = rng.randint(5, 40)
             scenarios.append(f"{m},{start},{start + rng.randint(5, 30)}")
         for rule in args.rules:
-            for bd in scenarios:
-                rows += run(args.binary, inst, rule, bd)
+            for improve in (False, True):
+                for bd in scenarios:
+                    rows += run(args.binary, inst, rule, bd, improve)
 
     csv_path = args.out / "results.csv"
     with csv_path.open("w", newline="") as f:
@@ -71,12 +75,15 @@ def main() -> None:
         return
 
     repairs = [r for r in rows if r["phase"] == "repair"]
-    fig, axes = plt.subplots(1, 2, figsize=(10, 4))
+    groups = [(rule, imp) for rule in args.rules for imp in ("0", "1")]
+    labels = [f"{rule}{'+LS' if imp == '1' else ''}" for rule, imp in groups]
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4))
     for ax, metric, label in [(axes[0], "makespan", "Makespan after repair"),
                               (axes[1], "total_shift", "Total start-time shift (stability)")]:
-        data = [[int(r[metric]) for r in repairs if r["rule"] == rule] for rule in args.rules]
+        data = [[int(r[metric]) for r in repairs if (r["rule"], r["improve"]) == g]
+                for g in groups]
         ax.boxplot(data)
-        ax.set_xticks(range(1, len(args.rules) + 1), args.rules)
+        ax.set_xticks(range(1, len(labels) + 1), labels, rotation=45)
         ax.set_title(label)
     fig.tight_layout()
     fig.savefig(args.out / "repair.png", dpi=150)

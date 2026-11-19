@@ -3,26 +3,35 @@
 #include <array>
 #include <cstdlib>
 
+#include "jsr/local_search.hpp"
+
 namespace jsr {
 
-RepairResult repairRightShiftDispatch(const Instance& inst, const Schedule& plan, Time now,
-                                      const Downtime& breakdown, Rule rule) {
-  std::vector<bool> frozen(inst.totalOps(), false);
+std::vector<std::optional<Time>> frozenAt(const Instance& inst, const Schedule& plan,
+                                          const Downtime& breakdown) {
+  std::vector<std::optional<Time>> fixed(static_cast<std::size_t>(inst.totalOps()));
   for (int i = 0; i < inst.totalOps(); ++i) {
-    const auto& op = inst.ops[i];
-    const bool started = plan.start[i] < now;
-    // An operation running on the broken machine is interrupted and restarted later.
-    const bool interrupted = op.machine == breakdown.machine &&
-                             plan.start[i] < breakdown.to &&
-                             plan.start[i] + op.duration > breakdown.from;
-    frozen[i] = started && !interrupted;
+    const bool started = plan.start[i] < breakdown.from;
+    const bool interrupted = inst.ops[i].machine == breakdown.machine &&
+                             plan.start[i] < breakdown.to && plan.end(inst, i) > breakdown.from;
+    if (started && !interrupted) fixed[i] = plan.start[i];
   }
+  return fixed;
+}
 
+RepairResult repair(const Instance& inst, const Schedule& plan, const Downtime& breakdown,
+                    RepairOptions opts) {
   const std::array downtimes{breakdown};
-  RepairResult res{buildSchedule(inst, rule, downtimes, &plan, &frozen), 0, 0, 0};
+  const Context ctx{
+      .downtimes = downtimes, .fixed = frozenAt(inst, plan, breakdown), .now = breakdown.from};
+
+  auto sched = buildSchedule(inst, opts.rule, ctx);
+  if (opts.localSearch) sched = steepestDescent(inst, sched, ctx).schedule;
+
+  RepairResult res{std::move(sched), 0, 0, 0};
   res.makespan = res.schedule.makespan(inst);
   for (int i = 0; i < inst.totalOps(); ++i) {
-    if (frozen[i]) continue;
+    if (ctx.isFixed(i)) continue;
     res.totalShift += std::llabs(res.schedule.start[i] - plan.start[i]);
     ++res.rescheduledOps;
   }
