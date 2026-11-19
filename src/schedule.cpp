@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <limits>
 #include <sstream>
+#include <stdexcept>
+#include <string>
 
 namespace jsr {
 
@@ -63,7 +65,15 @@ Time priority(Rule rule, const JobState& job, Time duration) {
 
 }  // namespace
 
+void requireCompatible(const Instance& inst, const Context& ctx) {
+  if (!ctx.fixed.empty() && ctx.fixed.size() != static_cast<std::size_t>(inst.totalOps()))
+    throw std::invalid_argument("Context::fixed has " + std::to_string(ctx.fixed.size()) +
+                                " entries, instance has " + std::to_string(inst.totalOps()) +
+                                " operations");
+}
+
 Schedule buildSchedule(const Instance& inst, Rule rule, const Context& ctx) {
+  requireCompatible(inst, ctx);
   const int n = inst.numJobs;
   Schedule sched;
   sched.start.assign(static_cast<std::size_t>(inst.totalOps()), 0);
@@ -128,6 +138,7 @@ Schedule buildSchedule(const Instance& inst, Rule rule, const Context& ctx) {
 
 std::optional<std::string> findViolation(const Instance& inst, const Schedule& sched,
                                          const Context& ctx) {
+  requireCompatible(inst, ctx);
   std::ostringstream err;
   std::vector<std::vector<int>> perMachine(static_cast<std::size_t>(inst.numMachines));
 

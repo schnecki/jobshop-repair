@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <stdexcept>
 
 #include "helpers.hpp"
 #include "jsr/sequence.hpp"
@@ -59,6 +60,33 @@ TEST(Decode, DetectsCycle) {
   const MachineSequence cyclic{{inst.index(1, 1), inst.index(0, 0)},
                                {inst.index(0, 1), inst.index(1, 0)}};
   EXPECT_FALSE(decode(inst, cyclic).has_value());
+}
+
+TEST(Decode, RejectsSequenceWithMissingOperation) {
+  const auto inst = test::tiny();
+  const MachineSequence missing{{inst.index(0, 0)}, {inst.index(0, 1), inst.index(1, 1)}};
+  EXPECT_FALSE(decode(inst, missing).has_value());
+}
+
+TEST(Decode, RejectsSequenceWithTooFewMachines) {
+  const auto inst = test::tiny();
+  const MachineSequence shortSeq{{inst.index(0, 0), inst.index(1, 0)}};
+  EXPECT_FALSE(decode(inst, shortSeq).has_value());
+}
+
+TEST(Decode, RejectsOperationOnWrongMachine) {
+  const auto inst = test::tiny();
+  const MachineSequence wrong{{inst.index(0, 0), inst.index(0, 1)},
+                              {inst.index(1, 0), inst.index(1, 1)}};
+  EXPECT_FALSE(decode(inst, wrong).has_value());
+}
+
+TEST(Decode, RejectsFixedVectorOfWrongSize) {
+  const auto inst = test::tiny();
+  Context ctx;
+  ctx.fixed.assign(1, std::nullopt);
+  EXPECT_THROW((void)decode(inst, sequenceOf(inst, buildSchedule(inst, Rule::SPT)), ctx),
+               std::invalid_argument);
 }
 
 TEST(Decode, RespectsContext) {
@@ -120,6 +148,17 @@ TEST(N5Moves, OnlySwapAdjacentCriticalOperations) {
     EXPECT_NE(std::ranges::find(path, a), path.end());
     EXPECT_NE(std::ranges::find(path, b), path.end());
   }
+}
+
+TEST(N5Moves, ExactBlockRules) {
+  // 3 jobs, each m0 -> m1 -> m2; op index 3j + k runs on machine k.
+  const auto inst = test::fromString("3 3\n0 1 1 1 2 1\n0 1 1 1 2 1\n0 1 1 1 2 1\n");
+  const MachineSequence seq{{0, 3, 6}, {1, 4, 7}, {2, 5, 8}};
+  // Blocks: m0 [0,3] (first), m1 [1,4,7] (middle), m2 [5,8] (last).
+  const std::vector path{0, 3, 1, 4, 7, 5, 8};
+  // First block: only its last pair. Middle block: first and last pair. Last block: only its
+  // first pair.
+  EXPECT_EQ(n5Moves(inst, seq, path), (std::vector<Swap>{{0, 0}, {1, 0}, {1, 1}, {2, 1}}));
 }
 
 TEST(N5Moves, NoMovesForSingleMachineBlockFreePath) {

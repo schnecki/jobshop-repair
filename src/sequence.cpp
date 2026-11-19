@@ -15,6 +15,22 @@ std::vector<int> machinePositions(const Instance& inst, const MachineSequence& s
   return pos;
 }
 
+// Every operation appears exactly once, in the sequence of its own machine.
+bool coversAllOperations(const Instance& inst, const MachineSequence& seq) {
+  if (seq.size() != static_cast<std::size_t>(inst.numMachines)) return false;
+  std::vector<bool> seen(static_cast<std::size_t>(inst.totalOps()), false);
+  int count = 0;
+  for (std::size_t m = 0; m < seq.size(); ++m) {
+    for (const int i : seq[m]) {
+      if (i < 0 || i >= inst.totalOps() || seen[i]) return false;
+      if (inst.ops[i].machine != static_cast<int>(m)) return false;
+      seen[i] = true;
+      ++count;
+    }
+  }
+  return count == inst.totalOps();
+}
+
 }  // namespace
 
 MachineSequence sequenceOf(const Instance& inst, const Schedule& sched) {
@@ -28,6 +44,8 @@ MachineSequence sequenceOf(const Instance& inst, const Schedule& sched) {
 
 std::optional<Schedule> decode(const Instance& inst, const MachineSequence& seq,
                                const Context& ctx) {
+  requireCompatible(inst, ctx);
+  if (!coversAllOperations(inst, seq)) return std::nullopt;
   const int total = inst.totalOps();
   const auto mpos = machinePositions(inst, seq);
 
@@ -101,6 +119,7 @@ std::vector<int> criticalPath(const Instance& inst, const Schedule& sched,
 
 std::vector<Swap> n5Moves(const Instance& inst, const MachineSequence& seq,
                           std::span<const int> path, const Context& ctx) {
+  requireCompatible(inst, ctx);
   const auto mpos = machinePositions(inst, seq);
 
   // Critical blocks: maximal runs of path operations linked by machine arcs.

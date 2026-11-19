@@ -55,6 +55,8 @@ TEST(Repair, InterruptedOperationRestartsAfterBreakdown) {
   const auto res = repair(inst, plan, {0, 5, 8});
   EXPECT_EQ(res.schedule.start[0], 8);
   EXPECT_EQ(res.makespan, 18);
+  EXPECT_EQ(res.totalShift, 8);
+  EXPECT_EQ(res.rescheduledOps, 1);
 }
 
 TEST(Repair, BreakdownAfterPlanEndsChangesNothing) {

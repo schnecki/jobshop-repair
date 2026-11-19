@@ -28,6 +28,10 @@ struct Context {
   [[nodiscard]] bool isFixed(int op) const { return !fixed.empty() && fixed[op].has_value(); }
 };
 
+// Throws std::invalid_argument if `ctx.fixed` is neither empty nor sized to the instance.
+// Every function taking a Context calls this.
+void requireCompatible(const Instance& inst, const Context& ctx);
+
 // Start time per operation, indexed like Instance::ops.
 struct Schedule {
   std::vector<Time> start;

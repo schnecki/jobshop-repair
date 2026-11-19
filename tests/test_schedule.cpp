@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <array>
+#include <stdexcept>
 
 #include "helpers.hpp"
 #include "jsr/schedule.hpp"
@@ -95,6 +96,13 @@ TEST(BuildSchedule, NothingStartsBeforeNow) {
   const Context ctx{.now = 10};
   const auto s = buildSchedule(inst, Rule::SPT, ctx);
   for (int i = 0; i < inst.totalOps(); ++i) EXPECT_GE(s.start[i], 10);
+}
+
+TEST(BuildSchedule, RejectsFixedVectorOfWrongSize) {
+  const auto inst = test::tiny();
+  Context ctx;
+  ctx.fixed.assign(2, std::nullopt);  // 4 operations
+  EXPECT_THROW((void)buildSchedule(inst, Rule::SPT, ctx), std::invalid_argument);
 }
 
 // ---------- findViolation ----------

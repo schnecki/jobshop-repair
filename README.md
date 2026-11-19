@@ -30,7 +30,8 @@ Design choices:
   way. No pointer-based graph, cache-friendly scans.
 - Search happens on **machine sequences**, which are decoded into start times. The same decoder
   handles downtimes, frozen operations and `now`, so plan and repair share one code path.
-- `Context` replaces optional raw pointers: an empty context means "empty shop at time 0".
+- An empty `Context` means "empty shop at time 0"; a `fixed` vector of the wrong size is
+  rejected with `std::invalid_argument`.
 
 ## Results (ft06, optimum 55)
 
